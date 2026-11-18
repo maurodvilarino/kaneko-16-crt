@@ -2831,9 +2831,9 @@ end
 // The native video pipeline above already aligns RGB with HS/VS/DE by two
 // clk_sys cycles. Keep the true VBlank aligned as well; crt_adjust uses it
 // separately from the combined horizontal/vertical blank input.
-reg [1:0] vb_d;
-initial vb_d = 2'b00;
-always @(posedge clk_sys) vb_d <= {vb_d[0], vb};
+reg [1:0] crt_vb_d;
+initial crt_vb_d = 2'b00;
+always @(posedge clk_sys) crt_vb_d <= {crt_vb_d[0], vb};
 
 // OSD values are sampled on the delayed native pixel enable.
 reg crt_on;
@@ -2893,7 +2893,7 @@ crt_adjust #(
 	.voffset(crt_vshift),
 	.r_in(out_r), .g_in(out_g), .b_in(out_b),
 	.hs_in(hs_d[1]), .vs_in(vs_d[1]),
-	.hb_in(~de_d[1]), .vb_in(vb_d[1]),
+	.hb_in(~de_d[1]), .vb_in(crt_vb_d[1]),
 	.r_out(crt_r), .g_out(crt_g), .b_out(crt_b),
 	.hs_out(crt_hs), .vs_out(crt_vs),
 	.hb_out(crt_hb), .vb_out(crt_vb),
