@@ -7,7 +7,7 @@ rmonic79/MiSTer-CRT-Adjust to the Kaneko 16 video output.
 
 - CRT Adjust: Off / On (default Off)
 - H-Size: -16..+15; positive widens, negative narrows
-- H-Position: -48..+48 pixels; positive moves right
+- H-Position: -48..+48 pixels; positive moves right. The 7-bit OSD field uses the upstream wrap encoding: 0..48 for 0..+48 and 80..127 (two's complement) for -48..-1.
 - V-Shift: -16..+15 lines; positive moves down
 
 The controls occupy status bits 38..55. The original options use bits only
