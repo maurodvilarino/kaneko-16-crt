@@ -2865,6 +2865,7 @@ reg [7:0] crt_rd_acc;
 initial crt_rd_acc = 8'd0;
 wire crt_rd_tick = (crt_rd_acc + 8'd4) >= {1'b0, crt_rd_period};
 reg crt_hs_ref_d;
+initial crt_hs_ref_d = 1'b0;
 wire crt_hs_ref;
 initial crt_hs_ref_d = 1'b0;
 always @(posedge clk_sys) crt_hs_ref_d <= crt_hs_ref;
