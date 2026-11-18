@@ -85,6 +85,7 @@ set_global_assignment -name VERILOG_MACRO "MISTER_FB=1"
 source sys/sys.tcl
 source sys/sys_analog.tcl
 source files.qip
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/video/crt_adjust.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/video/kaneko_video_timing.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/video/kaneko_tilewall.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/video/kaneko_tmap.sv
