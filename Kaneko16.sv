@@ -407,6 +407,7 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 	.joystick_0(joystick_0),
 	.joystick_1(joystick_1),
 	.status(status),
+	.status_menumask({14'd0, ~status[38], 1'b0}),
 	.buttons(buttons)
 );
 
@@ -2839,6 +2840,12 @@ reg crt_on;
 reg signed [4:0] crt_hsize;
 reg [6:0] crt_hpos;
 reg signed [5:0] crt_vshift;
+initial begin
+	crt_on = 1'b0;
+	crt_hsize = 5'sd0;
+	crt_hpos = 7'd0;
+	crt_vshift = 6'sd0;
+end
 always @(posedge clk_sys) if (cep_d[1]) begin
 	crt_on      <= status[38];
 	crt_hsize   <= $signed(status[43:39]);
@@ -2855,9 +2862,11 @@ wire signed [8:0] crt_hoffset = (crt_hpos <= 7'd48)
 // The CRT engine counts quarter-cycles, so the neutral period is 8 * 4 = 32.
 wire [7:0] crt_rd_period = 8'd32 + {{3{crt_hsize[4]}}, crt_hsize};
 reg [7:0] crt_rd_acc;
+initial crt_rd_acc = 8'd0;
 wire crt_rd_tick = (crt_rd_acc + 8'd4) >= {1'b0, crt_rd_period};
 reg crt_hs_ref_d;
 wire crt_hs_ref;
+initial crt_hs_ref_d = 1'b0;
 always @(posedge clk_sys) crt_hs_ref_d <= crt_hs_ref;
 wire crt_hs_ref_rise = crt_hs_ref & ~crt_hs_ref_d;
 always @(posedge clk_sys) begin
