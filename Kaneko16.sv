@@ -111,6 +111,10 @@ localparam CONF_STR = {
 	// the high bits where a straddle would matter least.
 	"O[34:33],Game override,Off(MRA),1 Magical Crystals,2 Blaze On,3 Wing Force;",
 	"O[37:35],Layer1 dx,+2 (MAME),0,-2,+4;",
+	"O[38],CRT Adjust,Off,On;",
+	"H1P1O[43:39],CRT H-Size,0,+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,+11,+12,+13,+14,+15,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
+	"H1P1O[50:44],CRT H-Position,0,+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,+11,+12,+13,+14,+15,+16,+17,+18,+19,+20,+21,+22,+23,+24,+25,+26,+27,+28,+29,+30,+31,+32,+33,+34,+35,+36,+37,+38,+39,+40,+41,+42,+43,+44,+45,+46,+47,+48,-48,-47,-46,-45,-44,-43,-42,-41,-40,-39,-38,-37,-36,-35,-34,-33,-32,-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
+	"H1P1O[55:51],CRT V-Shift,0,+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,+11,+12,+13,+14,+15,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
 	"O[26:24],Rotation,Off,Auto (per game),CW 90,CCW 90,180;",
 	// POSITION 0 IS 100% ON BOTH, because status defaults to zero and a fresh
 	// boot must not be silent or quiet. The same reason the rotation option and
@@ -2822,6 +2826,81 @@ always @(posedge clk_sys) begin
 	cep_d <= {cep_d[0], ce_pix};
 end
 
+// ---------------------------------------------------------------- CRT Adjust
+// The native video pipeline above already aligns RGB with HS/VS/DE by two
+// clk_sys cycles. Keep the true VBlank aligned as well; crt_adjust uses it
+// separately from the combined horizontal/vertical blank input.
+reg [1:0] vb_d;
+initial vb_d = 2'b00;
+always @(posedge clk_sys) vb_d <= {vb_d[0], vb};
+
+// OSD values are sampled on the delayed native pixel enable.
+reg crt_on;
+reg signed [4:0] crt_hsize;
+reg [6:0] crt_hpos;
+reg signed [5:0] crt_vshift;
+always @(posedge clk_sys) if (cep_d[1]) begin
+	crt_on      <= status[38];
+	crt_hsize   <= $signed(status[43:39]);
+	crt_hpos    <= status[50:44];
+	crt_vshift  <= $signed(status[55:51]);
+end
+
+// H-Position menu is sequentially encoded: 0..48 = right, 49..96 = -48..-1.
+wire signed [8:0] crt_hoffset = (crt_hpos <= 7'd48)
+	? $signed({2'b00, crt_hpos})
+	: $signed({2'b00, crt_hpos}) - 9'sd97;
+
+// Kaneko: 48 MHz / 6 MHz = 8 clk_sys cycles per source pixel.
+// The CRT engine counts quarter-cycles, so the neutral period is 8 * 4 = 32.
+wire [7:0] crt_rd_period = 8'd32 + {{3{crt_hsize[4]}}, crt_hsize};
+reg [7:0] crt_rd_acc;
+wire crt_rd_tick = (crt_rd_acc + 8'd4) >= {1'b0, crt_rd_period};
+reg crt_hs_ref_d;
+wire crt_hs_ref;
+always @(posedge clk_sys) crt_hs_ref_d <= crt_hs_ref;
+wire crt_hs_ref_rise = crt_hs_ref & ~crt_hs_ref_d;
+always @(posedge clk_sys) begin
+	if (crt_hs_ref_rise)       crt_rd_acc <= 8'd0;
+	else if (crt_rd_tick)      crt_rd_acc <= crt_rd_acc + 8'd4 - {1'b0, crt_rd_period};
+	else                       crt_rd_acc <= crt_rd_acc + 8'd4;
+end
+wire crt_rd_ce = crt_on ? crt_rd_tick : cep_d[1];
+
+wire [7:0] crt_r, crt_g, crt_b;
+wire crt_hs, crt_vs, crt_hb, crt_vb;
+crt_adjust #(
+	.VTOTAL(264),
+	.HTOTAL(384),
+	.HPOS_MODE(0)       // SYNCSHIFT: safe choice for the 256-pixel side-anchored modes.
+) u_crt_adjust (
+	.clk(clk_sys),
+	.pxl_cen(cep_d[1]),
+	.pxl2_cen(crt_rd_ce),
+	.active(crt_on),
+	.hsize(crt_hsize),
+	.hoffset(crt_hoffset),
+	.voffset(crt_vshift),
+	.r_in(out_r), .g_in(out_g), .b_in(out_b),
+	.hs_in(hs_d[1]), .vs_in(vs_d[1]),
+	.hb_in(~de_d[1]), .vb_in(vb_d[1]),
+	.r_out(crt_r), .g_out(crt_g), .b_out(crt_b),
+	.hs_out(crt_hs), .vs_out(crt_vs),
+	.hb_out(crt_hb), .vb_out(crt_vb),
+	.hs_ref_out(crt_hs_ref)
+);
+
+// Keep the MiSTer OSD anchored to the native active-window start while its
+// closing edge follows the resized active window.
+reg native_de_d, crt_active_d, de_osd;
+initial begin native_de_d = 1'b0; crt_active_d = 1'b0; de_osd = 1'b0; end
+always @(posedge clk_sys) begin
+	native_de_d  <= de_d[1];
+	crt_active_d <= ~crt_hb;
+	if (de_d[1] && ~native_de_d) de_osd <= 1'b1;
+	else if (crt_active_d && crt_hb) de_osd <= 1'b0;
+end
+
 // ------------------------------------------------------------- rotation
 //
 // Explosive Breaker is ROT90 and Wing Force ROT270 -- two of the four games,
@@ -2909,13 +2988,13 @@ screen_rotate u_rotate
 assign FB_FORCE_BLANK = 1'b0;
 
 assign CLK_VIDEO = clk_sys;
-assign CE_PIXEL  = cep_d[1];
-assign VGA_DE    = de_d[1];
-assign VGA_HS    = hs_d[1];
-assign VGA_VS    = vs_d[1];
-assign VGA_R     = out_r;
-assign VGA_G     = out_g;
-assign VGA_B     = out_b;
+assign CE_PIXEL  = crt_on ? crt_rd_ce : cep_d[1];
+assign VGA_DE    = crt_on ? de_osd : de_d[1];
+assign VGA_HS    = crt_on ? crt_hs : hs_d[1];
+assign VGA_VS    = crt_on ? crt_vs : vs_d[1];
+assign VGA_R     = crt_on ? crt_r  : out_r;
+assign VGA_G     = crt_on ? crt_g  : out_g;
+assign VGA_B     = crt_on ? crt_b  : out_b;
 
 endmodule
 
