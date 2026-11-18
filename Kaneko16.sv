@@ -2853,10 +2853,11 @@ always @(posedge clk_sys) if (cep_d[1]) begin
 	crt_vshift  <= $signed(status[55:51]);
 end
 
-// H-Position menu is sequentially encoded: 0..48 = right, 49..96 = -48..-1.
+// H-Position uses the reference module's 7-bit wrap encoding:
+// 0..48 = 0..+48, 80..127 = -48..-1 (two's complement).
 wire signed [8:0] crt_hoffset = (crt_hpos <= 7'd48)
 	? $signed({2'b00, crt_hpos})
-	: $signed({2'b00, crt_hpos}) - 9'sd97;
+	: $signed({2'b00, crt_hpos}) - 9'sd128;
 
 // Kaneko: 48 MHz / 6 MHz = 8 clk_sys cycles per source pixel.
 // The CRT engine counts quarter-cycles, so the neutral period is 8 * 4 = 32.
