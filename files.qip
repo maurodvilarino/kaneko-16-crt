@@ -18,3 +18,6 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/io/kaneko_rom_loader.sv
 set_global_assignment -name QIP_FILE rtl/pll/pll.qip
 set_global_assignment -name SDC_FILE Kaneko16.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE Kaneko16.sv
+
+# Core-side analog CRT geometry adjustment (H-Size, H-Position, V-Shift)
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/video/crt_adjust.sv
